@@ -1,0 +1,37 @@
+# --- STAGE 1: Build the React Application ---
+# Start with a Node.js image to get the build tools (npm, etc.)
+FROM node:18-alpine AS build
+
+# Set the working directory for our build stage
+WORKDIR /app
+
+# Copy the package.json and package-lock.json files first
+# This takes advantage of Docker caching
+COPY package*.json ./
+
+# Install all the project dependencies
+RUN npm install
+
+# Copy the rest of our application's source code
+COPY . .
+
+# Run the production build command defined in package.json
+RUN npm run build
+
+# --- STAGE 2: Serve the Built Application ---
+# Start with a very lightweight web server (nginx)
+FROM nginx:stable-alpine
+
+# Copy the built static files from our 'build' stage into the web server's public directory
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Copy our custom nginx configuration file
+# This is crucial for single-page applications like React to handle routing correctly
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80 (the default nginx port)
+EXPOSE 80
+
+# The default command for the nginx image will start the web server
+CMD ["nginx", "-g", "daemon off;"]
+
