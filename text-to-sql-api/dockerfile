@@ -1,0 +1,26 @@
+# 1. Start with a lean, official Python runtime as a parent image
+FROM python:3.9-slim
+
+# 2. Set the working directory inside the container
+WORKDIR /code
+
+# 3. Set the PYTHONPATH environment variable
+# This tells Python where to look for our code, solving import issues
+ENV PYTHONPATH=/code
+
+# 4. Copy the requirements file first to leverage Docker's layer caching
+COPY ./requirements.txt /code/requirements.txt
+
+# 5. Install the Python dependencies
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+
+# 6. Copy our application code into the container
+COPY ./app /code/app
+
+# 7. Expose port 8000 to the outside world
+EXPOSE 8000
+
+# 8. The command to run when the container starts
+# This starts the Uvicorn server, which runs our FastAPI application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
