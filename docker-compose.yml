@@ -1,0 +1,99 @@
+services:
+  # --- Text-to-SQL Service (The "Librarian") ---
+  text_to_sql_service:
+    build: ./text-to-sql-api
+    container_name: text_to_sql_service
+    environment:
+      - DB_HOST=text_to_sql_db
+      - DB_PORT=5432
+      - DB_USER=nandana
+      - DB_PASSWORD=anadnan123
+      - DB_NAME=mydb
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      text_to_sql_db:
+        # This service will wait until its database is fully healthy and ready.
+        condition: service_healthy
+
+  # --- Database for Text-to-SQL Service ---
+  text_to_sql_db:
+    image: postgres:15-alpine
+    container_name: text_to_sql_db
+    environment:
+      - POSTGRES_USER=nandana
+      - POSTGRES_PASSWORD=anadnan123
+      - POSTGRES_DB=mydb
+    volumes:
+      # --- FIX APPLIED HERE ---
+      # The path now points directly to the correct init.sql file.
+      - ./text-to-sql-api/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # This check confirms the database is ready to accept connections.
+      test: ["CMD-SHELL", "pg_isready -U nandana -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Diagnostics Service (The "Detective") ---
+  diagnostics_service:
+    build: ./diagnostics-api
+    container_name: diagnostics_service
+    environment:
+      - DB_HOST=diagnostics_db
+      - DB_PORT=5432
+      - DB_USER=diagnostics_user
+      - DB_PASSWORD=diagnostics_pass
+      - DB_NAME=diagnostics_db
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      # This tells Container 2 the address of Container 1 for M2M communication.
+      - TEXT_TO_SQL_API_URL=http://text_to_sql_service:8000/ask
+    ports:
+      - "8001:8001"
+    depends_on:
+      diagnostics_db:
+        # This service waits for its own database to be healthy.
+        condition: service_healthy
+      text_to_sql_service:
+        # It also waits for the Text-to-SQL service to start, since it depends on it.
+        condition: service_started
+
+  # --- Database for Diagnostics Service ---
+  diagnostics_db:
+    image: postgres:15-alpine
+    container_name: diagnostics_db
+    environment:
+      - POSTGRES_USER=diagnostics_user
+      - POSTGRES_PASSWORD=diagnostics_pass
+      - POSTGRES_DB=diagnostics_db
+    volumes:
+      # --- FIX APPLIED HERE ---
+      # The path now points directly to the correct init.sql file.
+      - ./diagnostics-api/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data_diagnostics:/var/lib/postgresql/data
+    healthcheck:
+      # This check confirms the diagnostics database is ready.
+      test: ["CMD-SHELL", "pg_isready -U diagnostics_user -d diagnostics_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# --- React Frontend Service has been removed as requested ---
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      # Map host port 3000 to the container's Nginx web server port 80.
+      - "3000:80" 
+    depends_on:
+      # The frontend will wait for both backend services to start.
+      - text_to_sql_service
+      - diagnostics_service
+
+# These named volumes persist the database data between restarts.
+volumes:
+  postgres_data:
+  postgres_data_diagnostics:
+
