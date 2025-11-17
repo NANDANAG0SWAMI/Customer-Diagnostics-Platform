@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Add a global dark background */
+body {
+  @apply bg-gray-900 text-gray-200;
+}
